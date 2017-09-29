@@ -1,0 +1,4 @@
+---
+machine_number: 00
+machine_path: "~/Documents/local/"
+ansible_inventory_file: "~/Documents/local/sandbox-ansible/vagrant_kubernetes_node/inventory"

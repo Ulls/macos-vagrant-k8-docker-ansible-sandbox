@@ -1,0 +1,69 @@
+---
+- hosts: localhost
+  connection: local
+
+  pre_tasks:
+    # Include variables from project directory
+    - name: Include vars of create_vagrant_kubernetes_node_vars/vars.yml
+      include_vars:
+        file: vagrant_kubernetes_node_vars/vars.yml
+    # Check to see if the machine directory exists...
+    - name: Check if machine directory exists
+      stat:
+        path: "{{ machine_path }}centos7-{{ machine_number }}"
+      register: machinecheck
+
+    # Exit if the machine doesn't exist
+    - name: Check to see if VM already exists
+      fail:
+        msg: "The machine centos7-{{ machine_number }} does not seem to exist"
+      when: not machinecheck.stat.exists
+
+  tasks:
+    # Shell script to get the IP of the VM
+    # - name: Shell script to get the IP of the new VM
+    #   shell: cd {{ machine_path }}centos7-{{ machine_number }} && echo $(vagrant ssh -c "ip address show eth1 | grep 'inet ' | sed -e 's/^.*inet //' -e 's/\/.*$//'" -- -q)
+    #   register: ip_from_shell
+    # - set_fact:
+    #     ip_from_shell: "{{ ip_from_shell.stdout }}"
+    # - debug: var=ip_from_shell
+
+    # Destroy VM
+    - name: Destroy VM
+      shell: cd {{ machine_path }}centos7-{{ machine_number }} && vagrant destroy -f default
+
+    # Remove directory structure for the VM
+    - name: Remove directory structure for the VM
+      shell: rm -fr {{ machine_path }}centos7-{{ machine_number }}
+
+    # Remove line from inventory file
+    - name: Remove inventory file for ansible
+      lineinfile:
+        path: '{{ ansible_inventory_file }}'
+        state: absent
+        line: 'centos-minion{{machine_number}}  ansible_connection=ssh  ansible_user=root'
+
+    # Remove line from /etc/hosts file
+    - name: Remove line from /etc/hosts file
+      lineinfile:
+        path: '/etc/hosts'
+        state: absent
+        regexp: 'centos-minion{{machine_number}}'
+      become: true
+      become_user: root
+
+    # Remove the entry for the VM from ~/.ssh/known_hosts file
+    - name: Remove line from known_hosts file
+      lineinfile:
+        path: '~/.ssh/known_hosts'
+        state: absent
+        regexp: 'centos-minion{{machine_number}}'
+
+# Update the /etc/hosts files in the cluster to remove the VM
+- hosts: vagrant_k8_cluster
+  tasks:
+    - name: Detete the record for the VM from the host files in the cluster
+      lineinfile:
+        path: '/etc/hosts'
+        state: absent
+        regexp: 'centos-minion{{machine_number}}'

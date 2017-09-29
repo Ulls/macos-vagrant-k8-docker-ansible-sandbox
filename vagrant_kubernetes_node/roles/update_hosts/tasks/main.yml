@@ -1,0 +1,7 @@
+---
+- hosts: vagrant_k8_cluster
+  tasks:
+    - name: Update host files in the cluster so the machines can see each other
+      lineinfile:
+        path: '/etc/hosts'
+        line: '{{ ip_address }} centos-minion{{machine_number}}'

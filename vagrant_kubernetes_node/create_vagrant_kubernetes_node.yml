@@ -1,0 +1,208 @@
+---
+- hosts: localhost
+  connection: local
+
+  pre_tasks:
+    # Include variables from project directory
+    - name: Include vars of create_vagrant_kubernetes_node_vars/vars.yml into the 'varcont' variable
+      include_vars:
+        file: vagrant_kubernetes_node_vars/vars.yml
+    # Check to see if the machine directory exists...
+    - name: Check if machine number is taken
+      stat:
+        path: "{{ machine_path }}centos7-{{ machine_number }}"
+      register: machinecheck
+
+    # Exit if the machine already exists
+    - name: Check to see if VM already exists
+      fail:
+        msg: "The machine centos7-{{ machine_number }} exists."
+      when: machinecheck.stat.exists
+
+  vars:
+    # the geerlingguy.homebrew role defaults homebrew_cask_apps to cask firefox, we don't want that so set that array var to empty []
+    homebrew_cask_apps: []
+  roles:
+    -  geerlingguy.homebrew
+
+  tasks:
+    # Install Virtualbox
+    - name: Check if Virtualbox is already installed
+      stat:
+        path: /usr/local/bin/Virtualbox
+      register: virtualboxcheck
+    - name: Install Virtualbox
+      shell: brew cask install virtualbox
+      when: not virtualboxcheck.stat.exists
+
+    # Install Vagrant
+    - name: Check if Vagrant is already installed
+      stat:
+        path: /usr/local/bin/vagrant
+      register: vagrantcheck
+    - name: Install Vagrant
+      shell: brew cask install vagrant
+      when: not vagrantcheck.stat.exists
+
+    # Install Vagrant-Manager
+    - name: Check if Vagrant-Manager is already installed
+      stat:
+        path: /usr/local/Caskroom/vagrant-manager
+      register: vagrantmanagercheck
+    - name: Install Vagrant
+      shell: brew cask install vagrant-manager
+      when: not vagrantmanagercheck.stat.exists
+
+    # Install wget
+    - name: Check if wget is already installed
+      stat:
+        path: /usr/local/bin/wget
+      register: wgetcheck
+    - name: Install wget
+      shell: brew install wget
+      when: not wgetcheck.stat.exists
+
+    # Create directory for the machine's Vagrantfile
+    - name: Create directory for new VM Vagrantfile
+      file:
+        path: "{{ machine_path }}centos7-{{ machine_number }}"
+        state: directory
+        mode: 0755
+    # Initialize the direcotry for Vagrant utilizations
+    - name: Initialize the direcotry for Vagrant utilization
+      shell: cd {{ machine_path }}centos7-{{ machine_number }} && vagrant init centos/7
+    # Update the contents of the Vagrantfile from the template
+    - name: Update the contents of the Vagrantfile from the template
+      copy: src="./create_vagrant_kubernetes_node_vagrantfile_template.txt" dest="{{ machine_path }}centos7-{{ machine_number }}/Vagrantfile"
+    # Create the VM
+    - name: Create the Vagrant VM
+      shell: cd {{ machine_path }}centos7-{{ machine_number }} && vagrant up
+    # Provision the new VM
+    #- name: Provision the new VM
+    #  shell: cd {{ machine_path }}centos7-{{ machine_number }} && vagrant provision default
+    - name: Update inventory file for ansible
+      lineinfile:
+        path: '{{ ansible_inventory_file }}'
+        line: 'centos-minion{{machine_number}}  ansible_connection=ssh  ansible_user=root'
+    # Refresh inventory to ensure new instaces exist in inventory
+    - name: Refresh inventory to ensure new instaces exist in inventory
+      meta: refresh_inventory
+    # Shell script to get the IP of the new VM
+    - name: Shell script to get the IP of the new VM
+      shell: cd {{ machine_path }}centos7-{{ machine_number }} && echo $(vagrant ssh -c "ip address show eth1 | grep 'inet ' | sed -e 's/^.*inet //' -e 's/\/.*$//'" -- -q)
+      register: new_ip_from_shell
+    - set_fact:
+        new_ip_from_shell: "{{ new_ip_from_shell.stdout }}"
+    - debug: var=new_ip_from_shell
+    - debug: msg="{{ new_ip_from_shell }}"
+    # Update host /etc/host file
+    - name: Update host files in the cluster so the machines can see each other
+      lineinfile:
+        path: '/etc/hosts'
+        line: '{{ new_ip_from_shell }} centos-minion{{machine_number}}'
+      become: true
+      become_user: root
+
+# Update each /etc/hosts file in the cluster
+- hosts: vagrant_k8_cluster
+  tasks:
+    - name: Update host files in the cluster so the machines can see each other
+      lineinfile:
+        dest: /etc/hosts
+        regexp: '.*{{ item }}$'
+        line: '{{ hostvars[item].ansible_eth1.ipv4.address }} {{item}}'
+        state: present
+      with_items: '{{ hostvars.localhost.groups["vagrant_k8_cluster"] }}'
+
+# Configure the new VM as a Kubernetes Node
+- hosts: centos-minion{{ machine_number }}
+  tasks:
+    # - name: Check
+    #   debug: var=hostvars
+
+    # Install ntpd
+    - name: Install ntpd
+      yum:
+        name: ntp
+        state: latest
+
+    # Enable and start ntpd
+    - name: Enable and start ntpd
+      shell: systemctl enable ntpd && systemctl start ntpd
+
+    # Install kubernetes
+    - name: Install kubernetes
+      yum:
+        name: kubernetes
+        state: latest
+
+    # Install docker
+    - name: Install docker
+      yum:
+        name: docker
+        state: latest
+
+    # Install etcd
+    - name: Install etcd
+      yum:
+        name: etcd
+        state: latest
+
+    # Update the /etc/kubernetes/config file
+    - name: Update the KUBE_MASTER configuration
+      lineinfile:
+        dest: /etc/kubernetes/config
+        regexp: 'KUBE_MASTER'
+        line: 'KUBE_MASTER="--master=http://centos-master:8080"'
+        backrefs: yes
+
+    - name: Add the KUBE_ETCD_SERVERS configuration
+      lineinfile:
+        dest: /etc/kubernetes/config
+        regexp: 'KUBE_ETCD_SERVERS'
+        line: 'KUBE_ETCD_SERVERS="--etcd-servers=http://centos-master:2379"'
+        state: present
+
+    # Update the /etc/kubernetes/kubelet file
+    - name: Update the KUBELET_ADDRESS configuration
+      lineinfile:
+        dest: /etc/kubernetes/kubelet
+        regexp: 'KUBELET_ADDRESS'
+        line: 'KUBELET_ADDRESS="--address=0.0.0.0"'
+        backrefs: yes
+
+    - name: Update the KUBELET_PORT configuration
+      lineinfile:
+        dest: /etc/kubernetes/kubelet
+        regexp: 'KUBELET_PORT'
+        line: 'KUBELET_PORT="--port=10250"'
+        backrefs: yes
+
+    - name: Update the KUBELET_HOSTNAME configuration
+      lineinfile:
+        dest: /etc/kubernetes/kubelet
+        regexp: 'KUBELET_HOSTNAME'
+        line: 'KUBELET_HOSTNAME="--hostname-override=centos-minion{{ machine_number }}"'
+        backrefs: yes
+
+    - name: Update the KUBELET_API_SERVER configuration
+      lineinfile:
+        dest: /etc/kubernetes/kubelet
+        regexp: 'KUBELET_API_SERVER'
+        line: 'KUBELET_API_SERVER="--api-servers=http://centos-master:8080"'
+        backrefs: yes
+
+    - name: Update the KUBELET_POD_INFRA_CONTAINER configuration
+      lineinfile:
+        dest: /etc/kubernetes/kubelet
+        regexp: 'KUBELET_POD_INFRA_CONTAINER'
+        line: '#KUBELET_POD_INFRA_CONTAINER="--pod-infra-container-image=registry.access.redhat.com/rhel7/pod-infrastructure:latest"'
+        backrefs: yes
+
+    # Enable kube-proxy kubelet and docker
+    - name: Enable kube-proxy kubelet and docker
+      shell: systemctl enable kube-proxy kubelet docker
+
+    # Start kube-proxy kubelet and docker
+    - name: Start kube-proxy kubelet and docker
+      shell: systemctl start kube-proxy kubelet docker

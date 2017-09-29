@@ -1,0 +1,5 @@
+---
+- hosts: "{{ host_var }}"
+  tasks:
+    - debug: var="{{ hostvars[inventory_hostname]['ansible_eth1']['ipv4']['address'] }}"
+    - debug: var=ansible_default_ipv4.address

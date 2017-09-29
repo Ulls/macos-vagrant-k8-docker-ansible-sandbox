@@ -1,0 +1,9 @@
+Vagrant.configure("2") do |config|
+  config.vm.box = "centos/7"
+  config.vm.box_download_insecure = true
+  config.vm.network "private_network", type: "dhcp"
+  config.vm.provision "file", source: "~/.ssh/id_rsa.pub", destination: "~/.ssh/me.pub"
+  config.vm.provision 'shell', inline: "sudo cat /home/vagrant/.ssh/me.pub >> /home/vagrant/.ssh/authorized_keys", privileged: false
+  config.vm.provision 'shell', inline: "sudo mkdir /root/.ssh"
+  config.vm.provision 'shell', inline: "sudo cp /home/vagrant/.ssh/authorized_keys /root/.ssh/"
+end
