@@ -529,4 +529,8 @@ The command uses the ``regexp`` command to find the line it needs to replace.
 ```
 Enable and start the kubernetes and docker daemons.  After these commands are issued, the VM will be and available member of the Kubernetes cluster.
 
+### Automating the Removal of a Kubernetes node with Ansible
+Just as we automated the creation of a Vagrant VM to be added to a Kubernetes cluster, we can automate the removal of the node and the destruction of the VM as well.  The Ansible playbook "remove_vagrant_kubernetes_node.yml" in this project handles this task.
+
+###### remove_vagrant_kubernetes_node.yml
 
