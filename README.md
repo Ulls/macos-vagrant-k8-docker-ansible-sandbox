@@ -18,3 +18,17 @@ The purpose of this repository is to maintain the automation of adding and remov
 Using Vagrant, we’ll setup two CentOS7 virtual machines, centos7-01 and centos7-02.  Centos7-01 will act as the master in our local Kubernetes (K8) virtual cluster.  All subsequent VMs will be provisioned to run as K8 minions (nodes).  Setup for these two VMs will be performed manually.  Later, we’ll install Ansible and provision additional K8 nodes in an automated manner.
 
 First let’s install dependencies we’ll need to run the cluster on MacOS.
+
+Install Brew
+```
+/usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+```
+
+Install Vagrant and Dependencies
+```
+brew cask install virtualbox
+brew cask install vagrant
+brew cask install vagrant-manager
+brew cask install wget
+```
+
