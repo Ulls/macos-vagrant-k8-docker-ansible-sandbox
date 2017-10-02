@@ -176,7 +176,7 @@ We can automate the manual steps of provisioning and deploying the Vagrant VM we
     ├── create_vagrant_kubernetes_node.yml
     ├── inventory
     ├── remove_vagrant_kubernetes_node.yml
-    ├── requirements.yml
+    └── requirements.yml
 ```
 
 #### Walkthrough
