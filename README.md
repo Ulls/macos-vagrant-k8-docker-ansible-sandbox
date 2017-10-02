@@ -527,10 +527,103 @@ The command uses the ``regexp`` command to find the line it needs to replace.
     - name: Start kube-proxy kubelet and docker
       shell: systemctl start kube-proxy kubelet docker
 ```
-Enable and start the kubernetes and docker daemons.  After these commands are issued, the VM will be and available member of the Kubernetes cluster.
+Enable and start the kubernetes and docker daemons.  After these commands are issued, the VM will be an available member of the Kubernetes cluster.
 
 ### Automating the Removal of a Kubernetes node with Ansible
 Just as we automated the creation of a Vagrant VM to be added to a Kubernetes cluster, we can automate the removal of the node and the destruction of the VM as well.  The Ansible playbook "remove_vagrant_kubernetes_node.yml" in this project handles this task.
 
 ###### remove_vagrant_kubernetes_node.yml
+What follows is a detailed explaination of the Ansible playbook that removes Kubernetes node from the cluster and destroys the virtual machine.  The remove_vagrant_kubernetes_node playbook will remove the machine from the cluster, clean up the ~/.ssh/known_hosts and /etc/hosts files on the Ansible runner, delete the /etc/hosts entries on the cluster machines and finally destroy the VM.
+
+- ![#f03c15](https://placehold.it/15/f03c15/000000?text=+) Run the playbook by issuing the following command
+```
+ansible-playbook remove_vagrant_kubernetes_node.yml --ask-sudo-pass --extra-vars "machine_number=04"
+```
+
+Explaination of the Playbook file
+```
+---
+- hosts: localhost
+  connection: local
+```
+The three dashes declares the file as being in the Anisble format.
+The ``hosts`` line defines the machine the Playbook command are targeting.  In this case, we're targeting our local machine.
+
+```
+  pre_tasks:
+    # Include variables from project directory
+    - name: Include vars of create_vagrant_kubernetes_node_vars/vars.yml
+      include_vars:
+        file: vagrant_kubernetes_node_vars/vars.yml
+    # Check to see if the machine directory exists...
+    - name: Check if machine directory exists
+      stat:
+        path: "{{ machine_path }}centos7-{{ machine_number }}"
+      register: machinecheck
+
+    # Exit if the machine doesn't exist
+    - name: Check to see if VM already exists
+      fail:
+        msg: "The machine centos7-{{ machine_number }} does not seem to exist"
+      when: not machinecheck.stat.exists
+```
+The pre_tasks for the removal playbook is nearly identical to the pre_tasks for the creation playbook.  The only difference is that the last step will exit the playbook if the machine *doesn't* exist.
+
+```
+    # Destroy VM
+    - name: Destroy VM
+      shell: cd {{ machine_path }}centos7-{{ machine_number }} && vagrant destroy -f default
+
+    # Remove directory structure for the VM
+    - name: Remove directory structure for the VM
+      shell: rm -fr {{ machine_path }}centos7-{{ machine_number }}
+```
+These steps run shell commands on the localhost to destroy the vitural machine and remove the directory we created to host the Vagrantfile to create the machine.
+
+```
+    # Remove line from inventory file
+    - name: Remove inventory file for ansible
+      lineinfile:
+        path: '{{ ansible_inventory_file }}'
+        state: absent
+        line: 'centos-minion{{machine_number}}  ansible_connection=ssh  ansible_user=root'
+```
+Because the machine no longer exists, we can remove it from our Ansible inventory file.  The ``lineinfile`` command has a ``state`` value of ``absent`` which instructs the command to remove the ``line`` from the file if it exists.
+
+```
+# Remove line from /etc/hosts file
+    - name: Remove line from /etc/hosts file
+      lineinfile:
+        path: '/etc/hosts'
+        state: absent
+        regexp: 'centos-minion{{machine_number}}'
+      become: true
+      become_user: root
+```
+Removes the destroyed virtual machine from the localhost's /etc/hosts file.  This time, lineinfile uses a regular espression ``regexp`` command to find the machine we created in the /etc/hosts file.  If found,  it's removed.  The ``become`` parameter instructs the command to take on a new identity, the ``become_user`` parameter defines that identity as root.  This playbook is run with the ``--ask-sudo-pass`` command line parameter so that the user enters their root password allowing this command to run successfully.
+
+```
+    # Remove the entry for the VM from ~/.ssh/known_hosts file
+    - name: Remove line from known_hosts file
+      lineinfile:
+        path: '~/.ssh/known_hosts'
+        state: absent
+        regexp: 'centos-minion{{machine_number}}'
+```
+The destroyed VM's information is removed from the ~/.ssh/known_hosts file as well.
+
+```
+# Update the /etc/hosts files in the cluster to remove the VM
+- hosts: vagrant_k8_cluster
+  tasks:
+    - name: Detete the record for the VM from the host files in the cluster
+      lineinfile:
+        path: '/etc/hosts'
+        state: absent
+        regexp: 'centos-minion{{machine_number}}'
+```
+At this point, the playbook stops issuing commands to the local machine and begins issuing commands to all the virtual machines in the Kubernetes cluster.
+The ``- hosts: vagrant_k8_cluster`` line instructs the playbook to apply the commands that follow to all the machines in our inventory file that are part of the vagrant_k8_cluster group.
+The command that follows removes the new VM's IP and alias from the /etc/hosts file on each machine in the cluster so that they no longer attempt to communicate with the removed node.
+After this command is issued, the VM will be destroyed and completely removed from Kubernetes cluster.
 
