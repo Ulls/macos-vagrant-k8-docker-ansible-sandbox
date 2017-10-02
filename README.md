@@ -19,12 +19,12 @@ Using Vagrant, we’ll setup two CentOS7 virtual machines, centos7-01 and centos
 
 First let’s install dependencies we’ll need to run the cluster on MacOS.
 
-Install Brew
+###### Install Brew
 ```
 /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
 ```
 
-Install Vagrant and Dependencies
+###### Install Vagrant and Dependencies
 ```
 brew cask install virtualbox
 brew cask install vagrant
