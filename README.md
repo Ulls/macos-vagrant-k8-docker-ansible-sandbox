@@ -1,4 +1,4 @@
-# Sandbox to create and test applications and processes using Docker, Kubernetes, Ansible, Kibana, Jaeger, Grafana, Slush and other tech on the NM stack.
+# Sandbox to create and test applications and processes using Docker, Kubernetes, Ansible, Kibana, Jaeger, Grafana, Slush, etc...
 
 #### vagrant_kubernetes_node
 [README](https://git.nmlv.nml.com/ULL4155/sandbox-ansible/tree/master/vagrant_kubernetes_node)
