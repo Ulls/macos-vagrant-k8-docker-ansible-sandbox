@@ -626,4 +626,3 @@ At this point, the playbook stops issuing commands to the local machine and begi
 The ``- hosts: vagrant_k8_cluster`` line instructs the playbook to apply the commands that follow to all the machines in our inventory file that are part of the vagrant_k8_cluster group.
 The command that follows removes the new VM's IP and alias from the /etc/hosts file on each machine in the cluster so that they no longer attempt to communicate with the removed node.
 After this command is issued, the VM will be destroyed and completely removed from Kubernetes cluster.
-
