@@ -74,13 +74,13 @@ yum install -y kubernetes docker etcd
 
 ###### Configure the Kubernetes Master (Kubernetes config)
 ```
-cd /etcd/kubernetes/
+cd /etc/kubernetes/
 vi config
 ```
 Alter the following configuration file lines
 ```
 KUBE_MASTER="--master=http://centos-master:8080"
-KUBE_ETCD_SERVERS=”--etcd-servers=http://centos-master:2379”
+KUBE_ETCD_SERVERS="--etcd-servers=http://centos-master:2379"
 ```
 
 ###### Configure the Kubernetes Master (Etcd config)
@@ -253,8 +253,10 @@ end
 ```
 ssh-keygen -t rsa
 ```
-In order to facilitate secure communication between Ansible and the VMs, the Playbook in this project will add the Vagrant configuration settings required to place this ssh key in the /.ssh/authorized_keys directory in the VMs being created.
-
+In order to facilitate secure communication between Ansible and the VMs, the Playbook in this project will add the Vagrant configuration settings required to place this ssh key in the /.ssh/authorized_keys directory in the VMs being created.  Ansible will ask you to veryify the ssh key footprint when it connects.  This can (and for this purpose, should) be ignored by running...
+```
+export ANSIBLE_HOST_KEY_CHECKING=False
+```
 ###### create_vagrant_kubernetes_node.yml
 What follows is a detailed explaination of the Ansible playbook that creates a Vagrant VM, configures it as a Kubernetes node and adds it to the existing Kubernetes cluster.  Ansible files are either in the yaml or json format.  Yaml is preferred, so that is what this project uses.
 
