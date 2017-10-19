@@ -1,0 +1,104 @@
+---
+# Update each /etc/hosts file in the cluster
+- hosts: vagrant_k8_cluster
+  tasks:
+    - name: Update host files in the cluster so the machines can see each other
+      lineinfile:
+        dest: /etc/hosts
+        regexp: '.*{{ item }}$'
+        line: '{{ hostvars[item].ansible_eth1.ipv4.address }} {{item}}'
+        state: present
+      with_items: '{{ hostvars.localhost.groups["vagrant_k8_cluster"] }}'
+
+# Configure the new VM as a Kubernetes Node
+- hosts: centos-minion{{ machine_number }}
+  tasks:
+    # - name: Check
+    #   debug: var=hostvars
+
+    # Install ntpd
+    - name: Install ntpd
+      yum:
+        name: ntp
+        state: latest
+
+    # Enable and start ntpd
+    - name: Enable and start ntpd
+      shell: systemctl enable ntpd && systemctl start ntpd
+
+    # Install kubernetes
+    - name: Install kubernetes
+      yum:
+        name: kubernetes
+        state: latest
+
+    # Install docker
+    - name: Install docker
+      yum:
+        name: docker
+        state: latest
+
+    # Install etcd
+    - name: Install etcd
+      yum:
+        name: etcd
+        state: latest
+
+    # Update the /etc/kubernetes/config file
+    - name: Update the KUBE_MASTER configuration
+      lineinfile:
+        dest: /etc/kubernetes/config
+        regexp: 'KUBE_MASTER'
+        line: 'KUBE_MASTER="--master=http://centos-master:8080"'
+        backrefs: yes
+
+    - name: Add the KUBE_ETCD_SERVERS configuration
+      lineinfile:
+        dest: /etc/kubernetes/config
+        regexp: 'KUBE_ETCD_SERVERS'
+        line: 'KUBE_ETCD_SERVERS="--etcd-servers=http://centos-master:2379"'
+        state: present
+
+    # Update the /etc/kubernetes/kubelet file
+    - name: Update the KUBELET_ADDRESS configuration
+      lineinfile:
+        dest: /etc/kubernetes/kubelet
+        regexp: 'KUBELET_ADDRESS'
+        line: 'KUBELET_ADDRESS="--address=0.0.0.0"'
+        backrefs: yes
+
+    - name: Update the KUBELET_PORT configuration
+      lineinfile:
+        dest: /etc/kubernetes/kubelet
+        regexp: 'KUBELET_PORT'
+        line: 'KUBELET_PORT="--port=10250"'
+        backrefs: yes
+
+    - name: Update the KUBELET_HOSTNAME configuration
+      lineinfile:
+        dest: /etc/kubernetes/kubelet
+        regexp: 'KUBELET_HOSTNAME'
+        line: 'KUBELET_HOSTNAME="--hostname-override=centos-minion{{ machine_number }}"'
+        backrefs: yes
+
+    - name: Update the KUBELET_API_SERVER configuration
+      lineinfile:
+        dest: /etc/kubernetes/kubelet
+        regexp: 'KUBELET_API_SERVER'
+        line: 'KUBELET_API_SERVER="--api-servers=http://centos-master:8080"'
+        backrefs: yes
+
+    - name: Update the KUBELET_POD_INFRA_CONTAINER configuration
+      lineinfile:
+        dest: /etc/kubernetes/kubelet
+        regexp: 'KUBELET_POD_INFRA_CONTAINER'
+        line: '#KUBELET_POD_INFRA_CONTAINER="--pod-infra-container-image=registry.access.redhat.com/rhel7/pod-infrastructure:latest"'
+        backrefs: yes
+
+    # Enable kube-proxy kubelet and docker
+    - name: Enable kube-proxy kubelet and docker
+      shell: systemctl enable kube-proxy kubelet docker
+
+    # Start kube-proxy kubelet and docker
+    - name: Start kube-proxy kubelet and docker
+      shell: systemctl start kube-proxy kubelet docker
