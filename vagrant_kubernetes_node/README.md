@@ -74,13 +74,13 @@ yum install -y kubernetes docker etcd
 
 ###### Configure the Kubernetes Master (Kubernetes config)
 ```
-cd /etcd/kubernetes/
+cd /etc/kubernetes/
 vi config
 ```
 Alter the following configuration file lines
 ```
 KUBE_MASTER="--master=http://centos-master:8080"
-KUBE_ETCD_SERVERS=”--etcd-servers=http://centos-master:2379”
+KUBE_ETCD_SERVERS="--etcd-servers=http://centos-master:2379"
 ```
 
 ###### Configure the Kubernetes Master (Etcd config)
