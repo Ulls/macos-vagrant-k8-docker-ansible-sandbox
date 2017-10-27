@@ -3,3 +3,5 @@ localhost ansible_connection=local
 [vagrant_k8_cluster]
 centos-master   ansible_connection=ssh  ansible_user=root
 centos-minion01  ansible_connection=ssh  ansible_user=root
+centos-minion02  ansible_connection=ssh  ansible_user=root
+centos-minion03  ansible_connection=ssh  ansible_user=root

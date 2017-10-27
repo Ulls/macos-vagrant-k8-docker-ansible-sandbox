@@ -102,6 +102,29 @@
         line: '{{ new_ip_from_shell }} centos-minion{{machine_number}}'
       become: true
       become_user: root
+    # Update the host's known_hosts file to communicate with the new VM
+    # - name: Update the known_hosts file of the host machine with the ssh key of the new VM
+    #   command: "ssh-keyscan centos-minion{{machine_number}} >> ~/.ssh/known_hosts"
+    - name: "check if known_hosts contains server's fingerprint"
+      command: ssh-keygen -F centos-minion{{machine_number}}
+      register: keygen
+      failed_when: keygen.stderr != ''
+      changed_when: False
+
+    - name: fetch remote ssh key
+      command: ssh-keyscan -T5 centos-minion{{machine_number}}
+      register: keyscan
+      failed_when: keyscan.rc != 0 or keyscan.stdout == ''
+      changed_when: False
+      when: keygen.rc == 1
+
+    - name: add ssh-key to local known_hosts
+      lineinfile:
+        name: ~/.ssh/known_hosts
+        create: yes
+        line: "{{ item }}"
+      when: keygen.rc == 1
+      with_items: '{{ keyscan.stdout_lines|default([]) }}'
 
 # Update each /etc/hosts file in the cluster
 - hosts: vagrant_k8_cluster
@@ -199,6 +222,11 @@
         line: '#KUBELET_POD_INFRA_CONTAINER="--pod-infra-container-image=registry.access.redhat.com/rhel7/pod-infrastructure:latest"'
         backrefs: yes
 
+    - name: Add an entry to the hosts file so it can pull docker images from the repo running on the local host machine
+      lineinfile:
+        path: /etc/hosts
+        line: '10.0.2.2 local-docker-repo'
+
     # Enable kube-proxy kubelet and docker
     - name: Enable kube-proxy kubelet and docker
       shell: systemctl enable kube-proxy kubelet docker
@@ -206,3 +234,7 @@
     # Start kube-proxy kubelet and docker
     - name: Start kube-proxy kubelet and docker
       shell: systemctl start kube-proxy kubelet docker
+
+    # Tell docker to allow for insecure pulls from the local repo
+    - name: Turn on inscure mode in docker for repo pulls
+      shell: docker daemon --insecure-registry=local-docker-repo:5000
